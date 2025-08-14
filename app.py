@@ -1,10 +1,11 @@
 import streamlit as st
 import fitz  # PyMuPDF
-import pytesseract
 from PIL import Image
+import easyocr
+import numpy as np
 
 st.set_page_config(page_title="PDF Editor (Cloud Safe)", layout="wide")
-st.title("📄 PDF Editor – Text & Scanned PDFs (No Poppler Needed)")
+st.title("📄 PDF Editor – Text & Scanned PDFs (No System Dependencies)")
 
 uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
 
@@ -31,22 +32,24 @@ if uploaded_file:
                     except:
                         page_fonts.append("helv")
 
-    # If no selectable text, run OCR
+    # Step 2: If no selectable text, run OCR using EasyOCR
     if not text_content.strip():
         is_scanned = True
         st.warning("No selectable text found. Running OCR...")
+        reader = easyocr.Reader(['en'])
         with st.spinner("📝 Performing OCR on PDF pages..."):
             for page in pdf_in:
                 pix = page.get_pixmap()
-                # Convert PyMuPDF pixmap to PIL Image
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                text_content += pytesseract.image_to_string(img) + "\n"
+                img_np = np.array(img)
+                result = reader.readtext(img_np, detail=0)
+                text_content += "\n".join(result) + "\n"
         st.success("✅ OCR complete!")
 
-    # Step 2: Let user edit text
+    # Step 3: Let user edit text
     edited_text = st.text_area("✏️ Edit Text Below", value=text_content, height=400)
 
-    # Step 3: Save PDF
+    # Step 4: Save PDF
     if st.button("💾 Save Edited PDF"):
         with st.spinner("📦 Creating PDF..."):
             pdf_out = fitz.open()
@@ -76,8 +79,6 @@ if uploaded_file:
                 for i, page in enumerate(pdf_in):
                     new_page = pdf_out.new_page(width=page.rect.width, height=page.rect.height)
                     pix = page.get_pixmap()
-                    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                    # Insert original page image
                     img_bytes = pix.tobytes("png")
                     new_page.insert_image(page.rect, stream=img_bytes)
 
