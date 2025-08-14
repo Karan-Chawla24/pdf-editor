@@ -1,11 +1,10 @@
 import streamlit as st
 import fitz  # PyMuPDF
 import pytesseract
-from pdf2image import convert_from_bytes
 import io
 
-st.set_page_config(page_title="PDF Editor (Full Version)", layout="wide")
-st.title("📄 Advanced PDF Editor (Original Font & Layout Preserved)")
+st.set_page_config(page_title="PDF Editor (Cloud Safe)", layout="wide")
+st.title("📄 PDF Editor – Text & Scanned PDFs (No Poppler Needed)")
 
 uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
 
@@ -18,17 +17,16 @@ if uploaded_file:
     pdf_in = fitz.open(stream=uploaded_bytes, filetype="pdf")
     page_fonts = []
 
-    # Step 1: Check for selectable text
+    # Step 1: Check if PDF has selectable text
     with st.spinner("🔍 Checking PDF content..."):
         for page in pdf_in:
             blocks = page.get_text("blocks")
             if blocks:
                 for b in blocks:
                     text_content += b[4] + "\n"
-                    # Get font from first span if available
-                    spans = page.get_text("dict")["blocks"]
+                    # Get font info if available
                     try:
-                        font_info = spans[0]["lines"][0]["spans"][0]["font"]
+                        font_info = page.get_text("dict")["blocks"][0]["lines"][0]["spans"][0]["font"]
                         page_fonts.append(font_info)
                     except:
                         page_fonts.append("helv")
@@ -36,12 +34,10 @@ if uploaded_file:
     if not text_content.strip():
         is_scanned = True
         st.warning("No selectable text found. Running OCR...")
-        with st.spinner("🖼 Converting PDF pages to images..."):
-            # Explicitly specify Poppler path
-            images = convert_from_bytes(uploaded_bytes, poppler_path="/usr/bin")
-        with st.spinner("📝 Performing OCR..."):
-            for img in images:
-                text_content += pytesseract.image_to_string(img) + "\n"
+        with st.spinner("📝 Performing OCR on PDF pages..."):
+            for page in pdf_in:
+                pix = page.get_pixmap()
+                text_content += pytesseract.image_to_string(pix.tobytes("png")) + "\n"
         st.success("✅ OCR complete!")
 
     # Step 2: Let user edit text
@@ -64,7 +60,7 @@ if uploaded_file:
                         if line_idx < len(edited_lines):
                             x, y = b[0], b[1]
                             fontname = page_fonts[block_idx] if block_idx < len(page_fonts) else "helv"
-                            fontsize = max(12, b[3]-b[1]-2)  # approximate fontsize from block height
+                            fontsize = max(12, b[3]-b[1]-2)
                             new_page.insert_text((x, y), edited_lines[line_idx],
                                                  fontname=fontname, fontsize=fontsize,
                                                  color=(0, 0, 0))
@@ -98,6 +94,5 @@ if uploaded_file:
             file_name="edited_final.pdf",
             mime="application/pdf"
         )
-
 else:
     st.info("📤 Please upload a PDF file to start.")
