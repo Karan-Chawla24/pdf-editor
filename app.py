@@ -1,7 +1,7 @@
 import streamlit as st
 import fitz  # PyMuPDF
 import pytesseract
-import io
+from PIL import Image
 
 st.set_page_config(page_title="PDF Editor (Cloud Safe)", layout="wide")
 st.title("📄 PDF Editor – Text & Scanned PDFs (No Poppler Needed)")
@@ -31,13 +31,16 @@ if uploaded_file:
                     except:
                         page_fonts.append("helv")
 
+    # If no selectable text, run OCR
     if not text_content.strip():
         is_scanned = True
         st.warning("No selectable text found. Running OCR...")
         with st.spinner("📝 Performing OCR on PDF pages..."):
             for page in pdf_in:
                 pix = page.get_pixmap()
-                text_content += pytesseract.image_to_string(pix.tobytes("png")) + "\n"
+                # Convert PyMuPDF pixmap to PIL Image
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                text_content += pytesseract.image_to_string(img) + "\n"
         st.success("✅ OCR complete!")
 
     # Step 2: Let user edit text
@@ -73,9 +76,12 @@ if uploaded_file:
                 for i, page in enumerate(pdf_in):
                     new_page = pdf_out.new_page(width=page.rect.width, height=page.rect.height)
                     pix = page.get_pixmap()
+                    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                    # Insert original page image
                     img_bytes = pix.tobytes("png")
                     new_page.insert_image(page.rect, stream=img_bytes)
 
+                    # Overlay edited text
                     start_line = i * lines_per_page
                     end_line = start_line + lines_per_page
                     y = 40
