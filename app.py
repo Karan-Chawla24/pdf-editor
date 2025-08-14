@@ -37,7 +37,8 @@ if uploaded_file:
         is_scanned = True
         st.warning("No selectable text found. Running OCR...")
         with st.spinner("🖼 Converting PDF pages to images..."):
-            images = convert_from_bytes(uploaded_bytes)
+            # Explicitly specify Poppler path
+            images = convert_from_bytes(uploaded_bytes, poppler_path="/usr/bin")
         with st.spinner("📝 Performing OCR..."):
             for img in images:
                 text_content += pytesseract.image_to_string(img) + "\n"
@@ -83,7 +84,6 @@ if uploaded_file:
                     end_line = start_line + lines_per_page
                     y = 40
                     for line in edited_lines[start_line:end_line]:
-                        # Approximate fontsize proportional to page height
                         fontsize = max(12, page.rect.height / 60)
                         new_page.insert_text((40, y), line, fontsize=fontsize, fontname="helv", color=(0, 0, 0))
                         y += fontsize + 2
